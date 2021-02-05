@@ -44,10 +44,6 @@ class ParseBrowser {
 	       	while (true) {
 	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
 	        	let parseTableResp = this.parseTable(pageContent);
-	    		// for (let resp of parseTableResp["table"]) {
-	    		// 	const pageContent = await this.getPageContent(resp["view"]);
-	    		// 	let parseSiteResp = this.parseMirror(pageContent);
-	    		// }
 	    		for (let i in parseTableResp["table"]) {
 	    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
 	    			let parseSiteResp = this.parseMirror(pageContent);
@@ -90,62 +86,17 @@ class ParseBrowser {
     parseTable(pageContent) {
     	const $ = cheerio.load(pageContent);
 
-    	// define column names and value get method
-    	let rowAttrs = [
-    		{
-    			name: "time",
-    			value: helpers.getTimestamp
-    		},
-    		{
-    			name: "notifier",
-    			value: (el) => {return `${SITE}${helpers.getHref(el)}`}
-    		},
-    		{
-    			name: "h",
-    			value: (el) => {return el.text() ? true : false}
-    		},
-    		{
-    			name: "m",
-    			value: helpers.getHref
-    		},
-    		{
-    			name: "r",
-    			value: helpers.getHref
-    		},
-    		{
-    			name: "l",
-    			value: (el) => {return el.find("img").attr("alt")}
-    		},
-    		{
-    			name: "starred",
-    			value: (el) => {return el.find("img").attr("src") ? true : false}
-    		},
-    		{
-    			name: "domain",
-    			value: helpers.getClearText
-    		},
-    		{
-    			name: "os",
-    			value: helpers.getClearText
-    		},
-    		{
-    			name: "view",
-    			value: (el) => {return `${SITE}${helpers.getHref(el)}`}
-    		}
-
-    	]
-
 		let trArr = [];
 
 		// iterate over all table rows with needed data
 		let trs = $("#ldeface > tbody > tr").slice(1, -2);
 		trs.each((i, tr) => {
-			// initialize row variable and 
 			let row = {};
-			
-			$(tr).find("td").each((i, td) => {
-				row[rowAttrs[i]["name"]] = rowAttrs[i]["value"]($(td));
-			})
+
+			row["time"] = helpers.getTimestamp($(tr).find("td:nth-child(1)"));
+			row["notifier"] = `${SITE}${helpers.getHref($(tr).find("td:nth-child(2)"))}`;
+			row["os"] = helpers.getClearText($(tr).find("td:nth-child(9)"));
+			row["view"] = `${SITE}${helpers.getHref($(tr).find("td:nth-child(10)"))}`;
 
 			trArr.push(row);
 		})
@@ -269,13 +220,13 @@ async function insertData(parseData) {
 	for (row of parseData) {
 		insertRows.push([
 			row["time"],
+			row["ip"],
 			row["domain"],
-			row["os"],
-			row["view"],
+			row["view"]
 		])
 		if (insertRows.length == 25) {
 			await new Promise((resolve, reject) => {
-				connection.query("INSERT INTO dump (time, domain, os, view) VALUES ?", [insertRows], (err, resp) => {
+				connection.query("INSERT INTO dump (time, ip, domain, view) VALUES ?", [insertRows], (err, resp) => {
 					if (err) {
 						console.log(">> Error in sql insert");
 						console.log(err);
