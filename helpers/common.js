@@ -46,8 +46,26 @@ function getTimestamp(el) {
 	}
 }
 
+function getIp(el) {
+	let str = el.text();
+	let ip = str.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/)[0];
+
+	return ip;
+}
+
+function getDomain(el) {
+	let str = el.text();
+	let strUrl = str.match(/(http.+)/)[0];
+
+	let newUrl = new URL.URL(strUrl);
+
+	return newUrl.origin;
+}
+
 exports.constructUrl = constructUrl;
 exports.createAssociativeArray = createAssociativeArray;
 exports.getHref = getHref;
 exports.getClearText = getClearText;
 exports.getTimestamp = getTimestamp;
+exports.getIp = getIp;
+exports.getDomain = getDomain;

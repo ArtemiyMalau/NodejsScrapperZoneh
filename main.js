@@ -27,7 +27,7 @@ class ParseBrowser {
         	headless: false
         };
         this.pageOptions = {
-        	timeout: 10000
+        	timeout: 7500
         }
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
@@ -42,25 +42,50 @@ class ParseBrowser {
         try {
 	        let previous_page = URL_ARGS["page"] - 1;
 	       	while (true) {
-	       		console.log(`>> Parsing ${helpers.constructUrl(URL, URL_ARGS)}`);
 	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
-	        	let parseResp = this.parseTable(pageContent);
-	    		
-	       		if (previous_page == parseResp["page"]) {
+	        	let parseTableResp = this.parseTable(pageContent);
+	    		// for (let resp of parseTableResp["table"]) {
+	    		// 	const pageContent = await this.getPageContent(resp["view"]);
+	    		// 	let parseSiteResp = this.parseMirror(pageContent);
+	    		// }
+	    		for (let i in parseTableResp["table"]) {
+	    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
+	    			let parseSiteResp = this.parseMirror(pageContent);
+
+	    			for (var key of Object.keys(parseSiteResp)) {
+	    				parseTableResp["table"][i][key] = parseSiteResp[key];
+					}
+	    			console.log(parseTableResp["table"][i]);
+	    		}
+
+	       		if (previous_page == parseTableResp["page"]) {
 	       			break;
 	       		} else {
-		       		parseData = parseData.concat(parseResp["table"]);
+		       		parseData = parseData.concat(parseTableResp["table"]);
 		       		URL_ARGS["page"] += 1;
-		       		previous_page = parseResp["page"];
+		       		previous_page = parseTableResp["page"];
 	       		}
 	       	}
 		} catch (e) {
+			console.log(e);
 		}
 		console.log(">> Parsing ended");
      	this.browser.close();
 
      	return parseData;
     }
+	
+	parseMirror(pageContent) {
+		const $ = cheerio.load(pageContent);
+
+		let domain = helpers.getDomain($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(2)"));
+		let ip = helpers.getIp($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(3)"));
+
+		console.log(domain);
+		console.log(ip);
+
+		return {ip, domain}
+	}
 
     parseTable(pageContent) {
     	const $ = cheerio.load(pageContent);
@@ -117,7 +142,7 @@ class ParseBrowser {
 		trs.each((i, tr) => {
 			// initialize row variable and 
 			let row = {};
-
+			
 			$(tr).find("td").each((i, td) => {
 				row[rowAttrs[i]["name"]] = rowAttrs[i]["value"]($(td));
 			})
@@ -128,10 +153,11 @@ class ParseBrowser {
 		// get page number to decide whether need to parsing again
 		let page = $("td.defacepages > strong").text();
 
-		return {table: trArr, page: page}
+		return {table: trArr, page}
     }
 
     async getPageContent(url) {
+		console.log(`>> Scrapping ${url}`);
     	await this.page.goto(url, this.pageOptions);
 
     	// trying to solve captcha
@@ -281,3 +307,25 @@ for(let arg of AVAILABLE_ARGS) {
 }
 
 run();
+
+
+// let a = {
+// 	table: [
+// 		{
+// 			test: 1
+// 		},
+// 		{
+// 			test: 2
+// 		},
+// 		{
+// 			test: 3
+// 		},
+// 		{
+// 			test: 4
+// 		}
+// 	]
+// };
+
+// for (item of a["table"]) {
+// 	console.log(item["test"]);
+// }
