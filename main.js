@@ -1,61 +1,53 @@
 const config = require("./config");
-const tools = require("./parser_tools.js");
+const helpers = require("./helpers/common.js");
 // const connection = require("./database.js");
 
 const Recognize = require('recognize');
 const puppeteer = require('puppeteer');
 const fs = require('fs');
-const url = require('url');
-// const crypto = require('crypto');
+const cheerio = require("cheerio");
+const crypto = require('crypto');
 
-const URL = new url.URL("https://zone-h.org/archive?");
-const AVAILABLE_ARGS = ["domain"];
-let URL_PARTS = {
+const URL = "https://zone-h.org/archive?";
+let URL_ARGS = {
 	"filter": 1,
 	"domain": "",
 	"fulltext": 1,
 	"page": 1
 }
+const AVAILABLE_ARGS = ["domain"];
 
 const CAPTCHA_PATH = "captcha.jpeg";
 const SOLVE_CAPTCHA_ATTEMPTS = 5;
 
-
-function construct_url(url, url_parts) {
-	for(let arg in url_parts) {
-		if (URL_PARTS[arg]) {
-			url.searchParams.set(arg, URL_PARTS[arg]);
-		}
-	}
-
-	return url;
-}
 
 class ParseBrowser {
     constructor() {
         this.browserOptions = {
         	headless: false
         };
+        this.pageOptions = {
+        	timeout: 50000
+        }
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
 
     async run() {
         console.log(">> Start browser");
         this.browser = await puppeteer.launch(this.browserOptions);
-
         this.page = await this.browser.newPage();
-        await this.page.setDefaultNavigationTimeout(5000);
         this.page.setUserAgent(this.userAgent);
 
-        let previous_page = URL_PARTS["page"] - 1;
+        let previous_page = URL_ARGS["page"] - 1;
        	while (true) {
-        	let parseData = await this.parse(construct_url(URL, URL_PARTS));
-        	console.log(parseData["page"]);
+        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
+    		const $ = cheerio.load(pageContent);
+
 
        		if (previous_page == parseData["page"]) {
        			break;
        		}
-       		URL_PARTS["page"] += 1;
+       		URL_ARGS["page"] += 1;
        		previous_page = parseData["page"];
        	}
 
@@ -66,9 +58,9 @@ class ParseBrowser {
         this.browser.close();
     }
 
-    async parse(URL) {
-    	console.log(URL.href);
-    	await this.page.goto(URL.href);
+    async getPageContent(url) {
+    	console.log(url);
+    	await this.page.goto(url, this.pageOptions);
 
     	let attempts = 0;
     	while (! await this.trySolveImageCaptcha("#cryptogram", "input[type=text][name*=captcha]", "input[type=submit]")) {
@@ -78,10 +70,12 @@ class ParseBrowser {
 	    	}
     	}
 
-    	let page = await this.page.$eval("td.defacepages > strong", item => item.textContent);
-    	let tableData = await this.parseTable();
+    	return this.page.content();
 
-    	return {page: page, table: tableData};
+    	// let page = await this.page.$eval("td.defacepages > strong", item => item.textContent);
+    	// let tableData = await this.parseTable();
+
+    	// return {page: page, table: tableData};
     }
 
     async parseTable() {
@@ -205,7 +199,7 @@ const argv = require('minimist')(process.argv.slice(2));
 
 for(let arg of AVAILABLE_ARGS) {
     if(arg in argv) {
-    	URL_PARTS[arg] = argv[arg];
+    	URL_ARGS[arg] = argv[arg];
     }
 }
 
