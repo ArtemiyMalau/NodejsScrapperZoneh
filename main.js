@@ -8,6 +8,7 @@ const fs = require('fs');
 const cheerio = require("cheerio");
 const crypto = require('crypto');
 
+const SITE = "https://zone-h.org";
 const URL = "https://zone-h.org/archive?";
 let URL_ARGS = {
 	"filter": 1,
@@ -27,7 +28,7 @@ class ParseBrowser {
         	headless: false
         };
         this.pageOptions = {
-        	timeout: 50000
+        	timeout: 10000
         }
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
@@ -38,30 +39,102 @@ class ParseBrowser {
         this.page = await this.browser.newPage();
         this.page.setUserAgent(this.userAgent);
 
-        let previous_page = URL_ARGS["page"] - 1;
-       	while (true) {
-        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
-    		const $ = cheerio.load(pageContent);
-
-
-       		if (previous_page == parseData["page"]) {
-       			break;
-       		}
-       		URL_ARGS["page"] += 1;
-       		previous_page = parseData["page"];
-       	}
+        let parseData = [];
+        try {
+	        let previous_page = URL_ARGS["page"] - 1;
+	       	while (true) {
+	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
+	        	let parseResp = this.parseTable(pageContent);
+	    		
+	       		if (previous_page == parseResp["page"]) {
+	       			break;
+	       		} else {
+		       		parseData = parseData.concat(parseResp["table"]);
+		       		URL_ARGS["page"] += 1;
+		       		previous_page = parseResp["page"];
+	       		}
+	       	}
+		} catch (e) {
+		}
 
      	this.browser.close();
+
+     	return parseData;
     }
 
-    async close() {
-        this.browser.close();
+    parseTable(pageContent) {
+    	const $ = cheerio.load(pageContent);
+
+    	// define column names and value get method
+    	let rowAttrs = [
+    		{
+    			name: "time",
+    			value: helpers.getTimestamp
+    		},
+    		{
+    			name: "notifier",
+    			value: (el) => {return `${SITE}${helpers.getHref(el)}`}
+    		},
+    		{
+    			name: "h",
+    			value: (el) => {return el.text() ? true : false}
+    		},
+    		{
+    			name: "m",
+    			value: helpers.getHref
+    		},
+    		{
+    			name: "r",
+    			value: helpers.getHref
+    		},
+    		{
+    			name: "l",
+    			value: (el) => {return el.find("img").attr("alt")}
+    		},
+    		{
+    			name: "starred",
+    			value: (el) => {return el.find("img").attr("src") ? true : false}
+    		},
+    		{
+    			name: "domain",
+    			value: helpers.getClearText
+    		},
+    		{
+    			name: "os",
+    			value: helpers.getClearText
+    		},
+    		{
+    			name: "view",
+    			value: (el) => {return `${SITE}${helpers.getHref(el)}`}
+    		}
+
+    	]
+
+		let trArr = [];
+
+		// iterate over all table rows with needed data
+		let trs = $("#ldeface > tbody > tr").slice(1, -2);
+		trs.each((i, tr) => {
+			// initialize row variable and 
+			let row = {};
+
+			$(tr).find("td").each((i, td) => {
+				row[rowAttrs[i]["name"]] = rowAttrs[i]["value"]($(td));
+			})
+
+			trArr.push(row);
+		})
+
+		// get page number to decide whether need to parsing again
+		let page = $("td.defacepages > strong").text();
+
+		return {table: trArr, page: page}
     }
 
     async getPageContent(url) {
-    	console.log(url);
     	await this.page.goto(url, this.pageOptions);
 
+    	// trying to solve captcha
     	let attempts = 0;
     	while (! await this.trySolveImageCaptcha("#cryptogram", "input[type=text][name*=captcha]", "input[type=submit]")) {
     		attempts += 1;
@@ -70,29 +143,8 @@ class ParseBrowser {
 	    	}
     	}
 
+    	// return page html
     	return this.page.content();
-
-    	// let page = await this.page.$eval("td.defacepages > strong", item => item.textContent);
-    	// let tableData = await this.parseTable();
-
-    	// return {page: page, table: tableData};
-    }
-
-    async parseTable() {
-    	let trArr = [];
-    	let trEls = await this.page.$$eval("#ldeface > tbody > tr", list => list.map(item => {
-    		let tr = [];
-
-    		let tds = item.querySelectorAll("td");
-			tds.forEach(function(td) {
-				tr.push(td.textContent);
-			});
-
-    		return tr;
-    	}));
-    	trEls = trEls.slice(1, -2);
-
-    	return trEls;
     }
 
     async checkCaptchaExist(captchaEl) {
@@ -140,7 +192,6 @@ class ParseBrowser {
 	  		});
 	  	})
 	  	.then((data) => {
-	  		console.log(data);
 	        if(data["code"]) {
 	        	data["status"] = true
 	        	return data
@@ -159,9 +210,6 @@ class ParseBrowser {
         	};
 		});
 		
-		console.log("-----------");
-		console.log(captchaCode);
-		
 		if (captchaCode["status"]) {
 			// input captcha code
 		    await this.page.type(inputEl, captchaCode["code"]);
@@ -173,7 +221,7 @@ class ParseBrowser {
 		    ]);
 
 		    // Check if captcha is still exist
-		    if (await this.checkCaptchaExist) {
+		    if (await this.checkCaptchaExist(captchaEl)) {
 		    	console.log("STILL EXIST");
 		    	recognize.report(captchaCode["id"], function(err, answer) {
 	                console.log(answer);
