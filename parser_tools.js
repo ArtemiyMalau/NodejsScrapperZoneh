@@ -66,6 +66,12 @@ async function loadProductsScroll(page, scrollLimit = Infinity) {
     }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function dumpXML(page, file) {
     const renderedContent = await page.evaluate(() => new XMLSerializer().serializeToString(document));
         
@@ -83,3 +89,4 @@ exports.isElementVisible = isElementVisible;
 exports.loadProductsClick = loadProductsClick;
 exports.loadProductsScroll = loadProductsScroll;
 exports.dumpXML = dumpXML;
+exports.sleep = sleep;

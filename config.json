@@ -5,4 +5,7 @@
         "password": "",
         "database": "zoneh"
     },
+    "rucaptcha": {
+    	"api_key": "e8a91d251bc4371bf64ad108e2f15351"
+    }
 }
