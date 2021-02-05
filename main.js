@@ -1,12 +1,11 @@
 const config = require("./config");
 const helpers = require("./helpers/common.js");
-// const connection = require("./database.js");
+const connection = require("./database.js");
 
 const Recognize = require('recognize');
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const cheerio = require("cheerio");
-const crypto = require('crypto');
 
 const SITE = "https://zone-h.org";
 const URL = "https://zone-h.org/archive?";
@@ -43,6 +42,7 @@ class ParseBrowser {
         try {
 	        let previous_page = URL_ARGS["page"] - 1;
 	       	while (true) {
+	       		console.log(`>> Parsing ${helpers.constructUrl(URL, URL_ARGS)}`);
 	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
 	        	let parseResp = this.parseTable(pageContent);
 	    		
@@ -56,7 +56,7 @@ class ParseBrowser {
 	       	}
 		} catch (e) {
 		}
-
+		console.log(">> Parsing ended");
      	this.browser.close();
 
      	return parseData;
@@ -237,11 +237,40 @@ class ParseBrowser {
 	}
 }
 
-async function run() {
-	let browser = new ParseBrowser();
-	await browser.run();
+async function insertData(parseData) {
+	console.log(">> Inserting parse data");
+	insertRows = [];
+	for (row of parseData) {
+		insertRows.push([
+			row["time"],
+			row["domain"],
+			row["os"],
+			row["view"],
+		])
+		if (insertRows.length == 25) {
+			await new Promise((resolve, reject) => {
+				connection.query("INSERT INTO dump (time, domain, os, view) VALUES ?", [insertRows], (err, resp) => {
+					if (err) {
+						console.log(">> Error in sql insert");
+						console.log(err);
+					} else {
+						console.log(`>> Inserted ${resp.affectedRows} records`);
+					}
+					resolve(insertRows = []);
+				})
+			})
+		}
+	}
+	console.log(">> End of inserting");
 }
 
+async function run() {
+	let browser = new ParseBrowser();
+	let parseData = await browser.run();
+	await insertData(parseData);
+
+	connection.end((err) => {});
+}
 
 const argv = require('minimist')(process.argv.slice(2));
 
