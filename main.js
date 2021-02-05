@@ -16,7 +16,6 @@ let URL_PARTS = {
 	"fulltext": 1,
 	"page": 1
 }
-let CUR_PAGE = 0;
 
 const CAPTCHA_PATH = "captcha.jpeg";
 const SOLVE_CAPTCHA_ATTEMPTS = 5;
@@ -32,7 +31,6 @@ function construct_url(url, url_parts) {
 	return url;
 }
 
-
 class ParseBrowser {
     constructor() {
         this.browserOptions = {
@@ -46,16 +44,20 @@ class ParseBrowser {
         this.browser = await puppeteer.launch(this.browserOptions);
 
         this.page = await this.browser.newPage();
-        await this.page.setDefaultNavigationTimeout(20000);
+        await this.page.setDefaultNavigationTimeout(5000);
         this.page.setUserAgent(this.userAgent);
 
-		let previous_page;
-        do {
-        	previous_page = CUR_PAGE;
+        let previous_page = URL_PARTS["page"] - 1;
+       	while (true) {
+        	let parseData = await this.parse(construct_url(URL, URL_PARTS));
+        	console.log(parseData["page"]);
 
-        	await this.parse(construct_url(URL, URL_PARTS));
-        	URL_PARTS["page"] += 1;
-        } while (CUR_PAGE != previous_page);
+       		if (previous_page == parseData["page"]) {
+       			break;
+       		}
+       		URL_PARTS["page"] += 1;
+       		previous_page = parseData["page"];
+       	}
 
      	this.browser.close();
     }
@@ -76,17 +78,27 @@ class ParseBrowser {
 	    	}
     	}
 
-    	this.parseTable();
+    	let page = await this.page.$eval("td.defacepages > strong", item => item.textContent);
+    	let tableData = await this.parseTable();
+
+    	return {page: page, table: tableData};
     }
 
     async parseTable() {
     	let trArr = [];
-    	trEls = await this.page.$$("#ldeface > tbody > tr");
-    	for (let tr of trEls) {
-    		trArr.push(tr);
-    	}
-    	trArr = trArr.slice(1, -2);
-    	console.log(trArr);
+    	let trEls = await this.page.$$eval("#ldeface > tbody > tr", list => list.map(item => {
+    		let tr = [];
+
+    		let tds = item.querySelectorAll("td");
+			tds.forEach(function(td) {
+				tr.push(td.textContent);
+			});
+
+    		return tr;
+    	}));
+    	trEls = trEls.slice(1, -2);
+
+    	return trEls;
     }
 
     async checkCaptchaExist(captchaEl) {
