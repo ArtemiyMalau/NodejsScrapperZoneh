@@ -49,16 +49,14 @@ async function run() {
 
 	let browser = new ParseBrowser();
 	let parseData = await browser.run();
-	// await insertData(parseData);
+	await insertData(parseData);
 
 	connection.end((err) => {});
 }
 
 
-function checkIpInRange(ip, ipIntStart, ipIntEnd) {
-	ip = ips.IPv4ToInt32(ip);
-
-	if (ip > ipIntStart && ip <= ipIntEnd) {
+function checkIpIntInRange(ipInt, ipIntStart, ipIntEnd) {
+	if (ipInt > ipIntStart && ipInt <= ipIntEnd) {
 		return true;
 	}
 	return false;
@@ -68,10 +66,10 @@ function checkIpInRange(ip, ipIntStart, ipIntEnd) {
 class ParseBrowser {
     constructor() {
         this.browserOptions = {
-        	headless: false
+        	headless: true
         };
         this.pageOptions = {
-        	timeout: 7500
+        	timeout: 12500
         };
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
@@ -108,9 +106,11 @@ class ParseBrowser {
 
 						// IpRange validation
 						if (REQUIRED_IPS) {
-							for (range in REQUIRED_IPS) {
-								if (checkIpInRange(parseTableResp["table"][i]["ip"], range["b"], range["e"])) {
+							let ipInt = ips.IPv4ToInt32(parseTableResp["table"][i]["ip"]);
+							for (range of REQUIRED_IPS) {
+								if (checkIpIntInRange(ipInt, range["b"], range["e"])) {
 									parseData.push(parseTableResp["table"][i]);
+									console.log("DOMAIN IN IP RANGE");
 									break;
 								}
 							}
@@ -134,9 +134,6 @@ class ParseBrowser {
 
 		let domain = helpers.getDomain($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(2)"));
 		let ip = helpers.getIp($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(3)"));
-
-		console.log(domain);
-		console.log(ip);
 
 		return {ip, domain}
 	}
@@ -206,7 +203,7 @@ class ParseBrowser {
 		});
 
 	  	// get captcha solve code
-	  	let captchaCode = helpers.readFilePromise(CAPTCHA_PATH)
+	  	let captchaCode = await helpers.readFilePromise(CAPTCHA_PATH)
 	  	.then((fileData) => {
 	  		return new Promise((resolve, reject) => {
 	  			recognize.solving(fileData, function(err, id, code) {
@@ -272,11 +269,12 @@ async function insertData(parseData) {
 			row["time"],
 			row["ip"],
 			row["domain"],
-			row["view"]
+			row["view"],
+			row["notifier"],
 		])
 		if (insertRows.length == 25) {
 			await new Promise((resolve, reject) => {
-				connection.query("INSERT INTO dump (time, ip, domain, view) VALUES ?", [insertRows], (err, resp) => {
+				connection.query("INSERT INTO dump (time, ip, domain, view, notifier) VALUES ?", [insertRows], (err, resp) => {
 					if (err) {
 						console.log(">> Error in sql insert");
 						console.log(err);
