@@ -1,4 +1,5 @@
 const URL = require('url');
+const fs = require('fs');
 
 function constructUrl(url, urlArgs) {
 	let newUrl = new URL.URL(`${url}?`);
@@ -62,8 +63,23 @@ function getDomain(el) {
 	return newUrl.origin;
 }
 
+function readFilePromise(filepath, encoding=null) {
+	return new Promise((resolve, reject) => {
+		fs.readFile(filepath, encoding, function(err, data) {
+  			if (err) {
+  				reject(err);
+  			} else {
+  				resolve(data);
+  			}
+  		})
+	});
+};
+
 exports.constructUrl = constructUrl;
+
 exports.createAssociativeArray = createAssociativeArray;
+exports.readFilePromise = readFilePromise;
+
 exports.getHref = getHref;
 exports.getClearText = getClearText;
 exports.getTimestamp = getTimestamp;

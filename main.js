@@ -1,11 +1,11 @@
+const Recognize = require('recognize');
+const puppeteer = require('puppeteer');
+const cheerio = require("cheerio");
+
 const config = require("./config");
 const helpers = require("./helpers/common.js");
 const connection = require("./database.js");
 
-const Recognize = require('recognize');
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-const cheerio = require("cheerio");
 
 const SITE = "https://zone-h.org";
 const URL = "https://zone-h.org/archive?";
@@ -15,7 +15,9 @@ let URL_ARGS = {
 	"fulltext": 1,
 	"page": 1
 }
-const AVAILABLE_ARGS = ["domain"];
+
+const AVAILABLE_URL_ARGS = ["domain"];
+const AVAILABLE_ARGS = AVAILABLE_URL_ARGS.concat(["city_ip_name", "ip_files"]);
 
 const CAPTCHA_PATH = "captcha.jpeg";
 const SOLVE_CAPTCHA_ATTEMPTS = 5;
@@ -28,7 +30,7 @@ class ParseBrowser {
         };
         this.pageOptions = {
         	timeout: 7500
-        }
+        };
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
 
@@ -148,15 +150,7 @@ class ParseBrowser {
 		});
 
 	  	// get captcha solve code
-	  	let captchaCode = await new Promise((resolve, reject) => {
-	  		fs.readFile(CAPTCHA_PATH, function(err, data) {
-	  			if (err) {
-	  				reject(err);
-	  			} else {
-	  				resolve(data);
-	  			}
-	  		})
-	  	})
+	  	let captchaCode = helpers.readFilePromise(CAPTCHA_PATH)
 	  	.then((fileData) => {
 	  		return new Promise((resolve, reject) => {
 	  			recognize.solving(fileData, function(err, id, code) {
@@ -251,7 +245,7 @@ async function run() {
 
 const argv = require('minimist')(process.argv.slice(2));
 
-for(let arg of AVAILABLE_ARGS) {
+for(let arg of AVAILABLE_URL_ARGS) {
     if(arg in argv) {
     	URL_ARGS[arg] = argv[arg];
     }
