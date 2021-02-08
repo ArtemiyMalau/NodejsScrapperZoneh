@@ -2,7 +2,7 @@ const URL = require('url');
 const fs = require('fs');
 
 function constructUrl(url, urlArgs) {
-	let newUrl = new URL.URL(`${url}?`);
+	let newUrl = new URL.URL(url);
 	for (arg in urlArgs) {
 		newUrl.searchParams.set(arg, urlArgs[arg]);
 	}

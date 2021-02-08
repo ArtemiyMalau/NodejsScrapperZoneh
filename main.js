@@ -3,10 +3,12 @@ const puppeteer = require('puppeteer');
 const cheerio = require("cheerio");
 
 const config = require("./config");
-const helpers = require("./helpers/common.js");
 const connection = require("./database.js");
+const helpers = require("./helpers/common.js");
+const ips = require("./helpers/ips.js");
 
 
+let REQUIRED_IPS = [];
 const SITE = "https://zone-h.org";
 const URL = "https://zone-h.org/archive?";
 let URL_ARGS = {
@@ -15,12 +17,52 @@ let URL_ARGS = {
 	"fulltext": 1,
 	"page": 1
 }
-
-const AVAILABLE_URL_ARGS = ["domain"];
-const AVAILABLE_ARGS = AVAILABLE_URL_ARGS.concat(["city_ip_name", "ip_files"]);
-
 const CAPTCHA_PATH = "captcha.jpeg";
 const SOLVE_CAPTCHA_ATTEMPTS = 5;
+
+const AVAILABLE_ARGS = ["city_ip_name", "ip_file", "domain"];
+const AVAILABLE_URL_ARGS = ["domain"];
+
+
+const argv = require('minimist')(process.argv.slice(2));
+console.log(argv);
+for(let arg of AVAILABLE_URL_ARGS) {
+    if(arg in argv) {
+    	URL_ARGS[arg] = argv[arg];
+    }
+}
+
+run();
+
+
+async function run() {
+	if (argv.city_ip_name) {
+		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
+		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+	}
+	console.log(REQUIRED_IPS.length);
+	if (argv.ip_file) {
+		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
+		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+	}
+	console.log(REQUIRED_IPS.length);
+
+	let browser = new ParseBrowser();
+	let parseData = await browser.run();
+	// await insertData(parseData);
+
+	connection.end((err) => {});
+}
+
+
+function checkIpInRange(ip, ipIntStart, ipIntEnd) {
+	ip = ips.IPv4ToInt32(ip);
+
+	if (ip > ipIntStart && ip <= ipIntEnd) {
+		return true;
+	}
+	return false;
+};
 
 
 class ParseBrowser {
@@ -46,22 +88,36 @@ class ParseBrowser {
 	       	while (true) {
 	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
 	        	let parseTableResp = this.parseTable(pageContent);
-	    		for (let i in parseTableResp["table"]) {
-	    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
-	    			let parseSiteResp = this.parseMirror(pageContent);
-
-	    			for (var key of Object.keys(parseSiteResp)) {
-	    				parseTableResp["table"][i][key] = parseSiteResp[key];
-					}
-	    			console.log(parseTableResp["table"][i]);
-	    		}
 
 	       		if (previous_page == parseTableResp["page"]) {
 	       			break;
 	       		} else {
-		       		parseData = parseData.concat(parseTableResp["table"]);
+	       			// Update page number
 		       		URL_ARGS["page"] += 1;
 		       		previous_page = parseTableResp["page"];
+
+		       		// Parse each row and put all data from row and mirrow together
+		    		for (let i = 0; i < parseTableResp["table"].length; i++) {
+		    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
+
+		    			let parseSiteResp = this.parseMirror(pageContent);
+		    			// Insert additional fields in parse row
+		    			parseTableResp["table"][i] = Object.assign(parseTableResp["table"][i], parseSiteResp);
+
+		    			console.log(parseTableResp["table"][i]);
+
+						// IpRange validation
+						if (REQUIRED_IPS) {
+							for (range in REQUIRED_IPS) {
+								if (checkIpInRange(parseTableResp["table"][i]["ip"], range["b"], range["e"])) {
+									parseData.push(parseTableResp["table"][i]);
+									break;
+								}
+							}
+						} else {
+							parseData.push(parseTableResp["table"][i]);
+						}
+		    		}
 	       		}
 	       	}
 		} catch (e) {
@@ -233,44 +289,6 @@ async function insertData(parseData) {
 		}
 	}
 	console.log(">> End of inserting");
-}
-
-async function run() {
-	let browser = new ParseBrowser();
-	let parseData = await browser.run();
-	await insertData(parseData);
-
-	connection.end((err) => {});
-}
-
-const argv = require('minimist')(process.argv.slice(2));
-
-for(let arg of AVAILABLE_URL_ARGS) {
-    if(arg in argv) {
-    	URL_ARGS[arg] = argv[arg];
-    }
-}
-
-run();
+};
 
 
-// let a = {
-// 	table: [
-// 		{
-// 			test: 1
-// 		},
-// 		{
-// 			test: 2
-// 		},
-// 		{
-// 			test: 3
-// 		},
-// 		{
-// 			test: 4
-// 		}
-// 	]
-// };
-
-// for (item of a["table"]) {
-// 	console.log(item["test"]);
-// }
