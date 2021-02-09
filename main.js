@@ -32,28 +32,6 @@ for(let arg of AVAILABLE_URL_ARGS) {
     }
 }
 
-run();
-
-
-async function run() {
-	if (argv.city_ip_name) {
-		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
-		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
-	}
-	console.log(REQUIRED_IPS.length);
-	if (argv.ip_file) {
-		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
-		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
-	}
-	console.log(REQUIRED_IPS.length);
-
-	let browser = new ParseBrowser();
-	let parseData = await browser.run();
-	await insertData(parseData);
-
-	connection.end((err) => {});
-}
-
 
 function checkIpIntInRange(ipInt, ipIntStart, ipIntEnd) {
 	if (ipInt > ipIntStart && ipInt <= ipIntEnd) {
@@ -290,3 +268,23 @@ async function insertData(parseData) {
 };
 
 
+async function run() {
+	if (argv.city_ip_name) {
+		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
+		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+	}
+	console.log(REQUIRED_IPS.length);
+	if (argv.ip_file) {
+		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
+		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+	}
+	console.log(REQUIRED_IPS.length);
+
+	let browser = new ParseBrowser();
+	let parseData = await browser.run();
+	await insertData(parseData);
+
+	connection.end((err) => {});
+}
+
+run();
