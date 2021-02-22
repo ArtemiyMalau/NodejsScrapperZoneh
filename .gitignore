@@ -2,3 +2,13 @@
 /captcha.jpeg
 README.md
 *.sql
+
+# python venv
+/Lib
+/Include
+/Scripts
+__pycache__
+pyvenv.cfg
+
+# python scripts
+*.py

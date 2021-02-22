@@ -65,9 +65,15 @@ async function getIpRangesFromIPv4File(filepath) {
 	return result;
 }
 
+function checkIpIntInRange(ipInt, ipIntStart, ipIntEnd) {
+	if (ipInt > ipIntStart && ipInt <= ipIntEnd) {
+		return true;
+	}
+	return false;
+};
+
 
 exports.IPv4ToInt32 = IPv4ToInt32;
-// exports.getIpRange = getIpRange;
-// exports.getCityByName = getCityByName;
 exports.getCityIpRanges = getCityIpRanges;
 exports.getIpRangesFromIPv4File = getIpRangesFromIPv4File;
+exports.checkIpIntInRange = checkIpIntInRange;

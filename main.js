@@ -25,20 +25,13 @@ const AVAILABLE_URL_ARGS = ["domain"];
 
 
 const argv = require('minimist')(process.argv.slice(2));
+console.log(`Passed args:`);
 console.log(argv);
 for(let arg of AVAILABLE_URL_ARGS) {
     if(arg in argv) {
     	URL_ARGS[arg] = argv[arg];
     }
 }
-
-
-function checkIpIntInRange(ipInt, ipIntStart, ipIntEnd) {
-	if (ipInt > ipIntStart && ipInt <= ipIntEnd) {
-		return true;
-	}
-	return false;
-};
 
 
 class ParseBrowser {
@@ -52,7 +45,8 @@ class ParseBrowser {
         this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
     }
 
-    async run() {
+    // Add optional insert function, which starts every parsed page. Pass in function parseData list and then clear them.
+    async run(insertFunc = null) {
         console.log(">> Start browser");
         this.browser = await puppeteer.launch(this.browserOptions);
         this.page = await this.browser.newPage();
@@ -83,10 +77,10 @@ class ParseBrowser {
 		    			console.log(parseTableResp["table"][i]);
 
 						// IpRange validation
-						if (REQUIRED_IPS) {
+						if (REQUIRED_IPS.length > 0) {
 							let ipInt = ips.IPv4ToInt32(parseTableResp["table"][i]["ip"]);
 							for (range of REQUIRED_IPS) {
-								if (checkIpIntInRange(ipInt, range["b"], range["e"])) {
+								if (helpers.checkIpIntInRange(ipInt, range["b"], range["e"])) {
 									parseData.push(parseTableResp["table"][i]);
 									console.log("DOMAIN IN IP RANGE");
 									break;
@@ -95,6 +89,11 @@ class ParseBrowser {
 						} else {
 							parseData.push(parseTableResp["table"][i]);
 						}
+
+		    		}
+		    		if (insertFunc) {
+						await insertFunc(parseData);
+						parseData = [];
 		    		}
 	       		}
 	       	}
@@ -241,6 +240,7 @@ class ParseBrowser {
 
 async function insertData(parseData) {
 	console.log(">> Inserting parse data");
+	console.log(parseData);
 	insertRows = [];
 	for (row of parseData) {
 		insertRows.push([
@@ -264,6 +264,19 @@ async function insertData(parseData) {
 			})
 		}
 	}
+	if (insertRows.length > 0) {
+		await new Promise((resolve, reject) => {
+			connection.query("INSERT INTO dump (time, ip, domain, view, notifier) VALUES ?", [insertRows], (err, resp) => {
+				if (err) {
+					console.log(">> Error in sql insert");
+					console.log(err);
+				} else {
+					console.log(`>> Inserted ${resp.affectedRows} records`);
+				}
+				resolve(insertRows = []);
+			})
+		})
+	}
 	console.log(">> End of inserting");
 };
 
@@ -271,18 +284,17 @@ async function insertData(parseData) {
 async function run() {
 	if (argv.city_ip_name) {
 		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
+		console.log(`IPs from city ip ranges: ${ipRanges.length}`);
 		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
 	}
-	console.log(REQUIRED_IPS.length);
 	if (argv.ip_file) {
 		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
+		console.log(`IPs from IPv4 file: ${ipRanges.length}`);
 		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
 	}
-	console.log(REQUIRED_IPS.length);
 
 	let browser = new ParseBrowser();
-	let parseData = await browser.run();
-	await insertData(parseData);
+	let parseData = await browser.run(insertData);
 
 	connection.end((err) => {});
 }
