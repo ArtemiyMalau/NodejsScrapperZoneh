@@ -1,12 +1,11 @@
 /misc
-/node_modules
-/captcha.jpeg
+node_modules
+captcha.jpeg
 README.md
-*.sql
 
 # python venv
-/Lib
-/Include
-/Scripts
+py/Lib
+py/Include
+py/Scripts
 __pycache__
 pyvenv.cfg
