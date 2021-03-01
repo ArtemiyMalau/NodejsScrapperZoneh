@@ -20,7 +20,7 @@ let URL_ARGS = {
 const CAPTCHA_PATH = "captcha.jpeg";
 const SOLVE_CAPTCHA_ATTEMPTS = 5;
 
-const AVAILABLE_ARGS = ["city_ip_name", "ip_file", "domain"];
+const AVAILABLE_ARGS = ["city_ip_name", "ip_file", "domain", "page"];
 const AVAILABLE_URL_ARGS = ["domain"];
 
 
@@ -56,10 +56,14 @@ class ParseBrowser {
         try {
 	        let previous_page = URL_ARGS["page"] - 1;
 	       	while (true) {
-	        	const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
+        		const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
+        		if (!pageContent) {
+	       			continue;
+        		}
+
 	        	let parseTableResp = this.parseTable(pageContent);
 
-	       		if (previous_page == parseTableResp["page"]) {
+	       		if (previous_page >= parseTableResp["page"]) {
 	       			break;
 	       		} else {
 	       			// Update page number
@@ -69,8 +73,12 @@ class ParseBrowser {
 		       		// Parse each row and put all data from row and mirrow together
 		    		for (let i = 0; i < parseTableResp["table"].length; i++) {
 		    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
+		    			if (!pageContent) {
+			       			continue;
+		        		}
 
-		    			let parseSiteResp = this.parseMirror(pageContent);
+	    				let parseSiteResp = this.parseMirror(pageContent);
+	    				
 		    			// Insert additional fields in parse row
 		    			parseTableResp["table"][i] = Object.assign(parseTableResp["table"][i], parseSiteResp);
 
@@ -109,10 +117,13 @@ class ParseBrowser {
 	parseMirror(pageContent) {
 		const $ = cheerio.load(pageContent);
 
-		let domain = helpers.getDomain($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(2)"));
+		let url = helpers.getUrl($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(2)"));
+		
+		let domain = url.origin;
+		let hackLink = url.href;
 		let ip = helpers.getIp($("li.deface0:nth-child(2) > ul:nth-child(1) > li:nth-child(3)"));
 
-		return {ip, domain}
+		return {ip, domain, hackLink}
 	}
 
     parseTable(pageContent) {
@@ -247,12 +258,13 @@ async function insertData(parseData) {
 			row["time"],
 			row["ip"],
 			row["domain"],
+			row["hackLink"],
 			row["view"],
 			row["notifier"],
 		])
 		if (insertRows.length == 25) {
 			await new Promise((resolve, reject) => {
-				connection.query("INSERT INTO dump (time, ip, domain, view, notifier) VALUES ?", [insertRows], (err, resp) => {
+				connection.query("INSERT INTO dump (time, ip, domain, hackLink, view, notifier) VALUES ?", [insertRows], (err, resp) => {
 					if (err) {
 						console.log(">> Error in sql insert");
 						console.log(err);
@@ -266,7 +278,7 @@ async function insertData(parseData) {
 	}
 	if (insertRows.length > 0) {
 		await new Promise((resolve, reject) => {
-			connection.query("INSERT INTO dump (time, ip, domain, view, notifier) VALUES ?", [insertRows], (err, resp) => {
+			connection.query("INSERT INTO dump (time, ip, domain, hackLink, view, notifier) VALUES ?", [insertRows], (err, resp) => {
 				if (err) {
 					console.log(">> Error in sql insert");
 					console.log(err);

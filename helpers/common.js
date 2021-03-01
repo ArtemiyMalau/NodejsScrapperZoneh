@@ -54,13 +54,13 @@ function getIp(el) {
 	return ip;
 }
 
-function getDomain(el) {
+function getUrl(el) {
 	let str = el.text();
 	let strUrl = str.match(/(http.+)/)[0];
 
 	let newUrl = new URL.URL(strUrl);
 
-	return newUrl.origin;
+	return newUrl;
 }
 
 function readFilePromise(filepath, encoding=null) {
@@ -84,4 +84,4 @@ exports.getHref = getHref;
 exports.getClearText = getClearText;
 exports.getTimestamp = getTimestamp;
 exports.getIp = getIp;
-exports.getDomain = getDomain;
+exports.getUrl = getUrl;
