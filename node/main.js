@@ -223,49 +223,6 @@ class ParseBrowser {
 	}
 }
 
-async function insertData(parseData) {
-	console.log(">> Inserting parse data");
-	console.log(parseData);
-	insertRows = [];
-	for (row of parseData) {
-		insertRows.push([
-			row["time"],
-			row["ip"],
-			row["domain"],
-			row["hackLink"],
-			row["view"],
-			row["notifier"],
-		])
-		if (insertRows.length == 25) {
-			await new Promise((resolve, reject) => {
-				connection.query("INSERT INTO dump (time, ip, domain, hackLink, view, notifier) VALUES ?", [insertRows], (err, resp) => {
-					if (err) {
-						console.log(">> Error in sql insert");
-						console.log(err);
-					} else {
-						console.log(`>> Inserted ${resp.affectedRows} records`);
-					}
-					resolve(insertRows = []);
-				})
-			})
-		}
-	}
-	if (insertRows.length > 0) {
-		await new Promise((resolve, reject) => {
-			connection.query("INSERT INTO dump (time, ip, domain, hackLink, view, notifier) VALUES ?", [insertRows], (err, resp) => {
-				if (err) {
-					console.log(">> Error in sql insert");
-					console.log(err);
-				} else {
-					console.log(`>> Inserted ${resp.affectedRows} records`);
-				}
-				resolve(insertRows = []);
-			})
-		})
-	}
-	console.log(">> End of inserting");
-};
-
 
 async function parse_argv() {
 	const argv = require('minimist')(process.argv.slice(2));
@@ -294,14 +251,10 @@ async function parse_argv() {
 async function run() {
 	await parse_argv()
 	console.log(config);
-	// const connection = require("./database.js");
 
 
 	let browser = new ParseBrowser();
-	// let parseData = await browser.run(insertData);
-	let parseData = await browser.run(csvWriter);
-
-	// connection.end((err) => {});
+	await browser.run(csvWriter);
 }
 
 
