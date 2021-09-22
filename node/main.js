@@ -1,37 +1,11 @@
-const Recognize = require('recognize');
-const puppeteer = require('puppeteer');
 const cheerio = require("cheerio");
+const createCsvWriter = require("csv-writer").createObjectCsvWriter;
+const puppeteer = require('puppeteer');
+const Recognize = require('recognize');
 
 const config = require("./config");
-const connection = require("./database.js");
 const helpers = require("./helpers/common.js");
 const ips = require("./helpers/ips.js");
-
-
-let REQUIRED_IPS = [];
-const SITE = "https://zone-h.org";
-const URL = "https://zone-h.org/archive?";
-let URL_ARGS = {
-	"filter": 1,
-	"domain": "",
-	"fulltext": 1,
-	"page": 1
-}
-const CAPTCHA_PATH = "captcha.jpeg";
-const SOLVE_CAPTCHA_ATTEMPTS = 5;
-
-const AVAILABLE_ARGS = ["city_ip_name", "ip_file", "domain", "page"];
-const AVAILABLE_URL_ARGS = ["domain"];
-
-
-const argv = require('minimist')(process.argv.slice(2));
-console.log(`Passed args:`);
-console.log(argv);
-for(let arg of AVAILABLE_URL_ARGS) {
-    if(arg in argv) {
-    	URL_ARGS[arg] = argv[arg];
-    }
-}
 
 
 class ParseBrowser {
@@ -46,7 +20,7 @@ class ParseBrowser {
     }
 
     // Add optional insert function, which starts every parsed page. Pass in function parseData list and then clear them.
-    async run(insertFunc = null) {
+    async run(csvWriter) {
         console.log(">> Start browser");
         this.browser = await puppeteer.launch(this.browserOptions);
         this.page = await this.browser.newPage();
@@ -54,9 +28,9 @@ class ParseBrowser {
 
         let parseData = [];
         try {
-	        let previous_page = URL_ARGS["page"] - 1;
+	        let previous_page = config.URL_ARGS["page"] - 1;
 	       	while (true) {
-        		const pageContent = await this.getPageContent(helpers.constructUrl(URL, URL_ARGS));
+        		const pageContent = await this.getPageContent(helpers.constructUrl(config.URL, config.URL_ARGS));
         		if (!pageContent) {
 	       			continue;
         		}
@@ -67,7 +41,7 @@ class ParseBrowser {
 	       			break;
 	       		} else {
 	       			// Update page number
-		       		URL_ARGS["page"] += 1;
+		       		config.URL_ARGS["page"] += 1;
 		       		previous_page = parseTableResp["page"];
 
 		       		// Parse each row and put all data from row and mirrow together
@@ -85,9 +59,9 @@ class ParseBrowser {
 		    			console.log(parseTableResp["table"][i]);
 
 						// IpRange validation
-						if (REQUIRED_IPS.length > 0) {
+						if (config.REQUIRED_IPS.length > 0) {
 							let ipInt = ips.IPv4ToInt32(parseTableResp["table"][i]["ip"]);
-							for (range of REQUIRED_IPS) {
+							for (range of config.REQUIRED_IPS) {
 								if (helpers.checkIpIntInRange(ipInt, range["b"], range["e"])) {
 									parseData.push(parseTableResp["table"][i]);
 									console.log("DOMAIN IN IP RANGE");
@@ -99,10 +73,10 @@ class ParseBrowser {
 						}
 
 		    		}
-		    		if (insertFunc) {
-						await insertFunc(parseData);
-						parseData = [];
-		    		}
+
+		    		// Appending parsed data to csv file
+		    		await csvWriter.writeRecords(parseData);
+					parseData = [];
 	       		}
 	       	}
 		} catch (e) {
@@ -137,9 +111,9 @@ class ParseBrowser {
 			let row = {};
 
 			row["time"] = helpers.getTimestamp($(tr).find("td:nth-child(1)"));
-			row["notifier"] = `${SITE}${helpers.getHref($(tr).find("td:nth-child(2)"))}`;
+			row["notifier"] = `${config.SITE}${helpers.getHref($(tr).find("td:nth-child(2)"))}`;
 			row["os"] = helpers.getClearText($(tr).find("td:nth-child(9)"));
-			row["view"] = `${SITE}${helpers.getHref($(tr).find("td:nth-child(10)"))}`;
+			row["view"] = `${config.SITE}${helpers.getHref($(tr).find("td:nth-child(10)"))}`;
 
 			trArr.push(row);
 		})
@@ -158,7 +132,7 @@ class ParseBrowser {
     	let attempts = 0;
     	while (! await this.trySolveImageCaptcha("#cryptogram", "input[type=text][name*=captcha]", "input[type=submit]")) {
     		attempts += 1;
-	    	if (attempts == SOLVE_CAPTCHA_ATTEMPTS) {
+	    	if (attempts == config.SOLVE_CAPTCHA_ATTEMPTS) {
 	    		return;
 	    	}
     	}
@@ -183,15 +157,15 @@ class ParseBrowser {
 
 		// make captcha screenshot and safe on local machine
 	  	const captcha = await this.page.$(captchaEl);
-	  	await captcha.screenshot({path: CAPTCHA_PATH});
+	  	await captcha.screenshot({path: config.CAPTCHA_PATH});
 
 	  	// create recognize instance
 	  	var recognize = new Recognize('rucaptcha', {
-		    key: config["rucaptcha"]["api_key"]
+		    key: config.PROJECT_CONFIG["rucaptcha"]["api_key"]
 		});
 
 	  	// get captcha solve code
-	  	let captchaCode = await helpers.readFilePromise(CAPTCHA_PATH)
+	  	let captchaCode = await helpers.readFilePromise(config.CAPTCHA_PATH)
 	  	.then((fileData) => {
 	  		return new Promise((resolve, reject) => {
 	  			recognize.solving(fileData, function(err, id, code) {
@@ -293,22 +267,69 @@ async function insertData(parseData) {
 };
 
 
-async function run() {
+async function parse_argv() {
+	const argv = require('minimist')(process.argv.slice(2));
+
+	console.log(`Passed args:`);
+	console.log(argv);
+	for(let arg of config.AVAILABLE_URL_ARGS) {
+	    if (arg in argv) {
+	    	config.URL_ARGS[arg] = argv[arg];
+	    }
+	}
+
 	if (argv.city_ip_name) {
 		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
 		console.log(`IPs from city ip ranges: ${ipRanges.length}`);
-		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+		config.REQUIRED_IPS = config.REQUIRED_IPS.concat(ipRanges);
 	}
 	if (argv.ip_file) {
 		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
 		console.log(`IPs from IPv4 file: ${ipRanges.length}`);
-		REQUIRED_IPS = REQUIRED_IPS.concat(ipRanges);
+		config.REQUIRED_IPS = config.REQUIRED_IPS.concat(ipRanges);
 	}
-
-	let browser = new ParseBrowser();
-	let parseData = await browser.run(insertData);
-
-	connection.end((err) => {});
 }
 
-run();
+
+async function run() {
+	await parse_argv()
+	console.log(config);
+	// const connection = require("./database.js");
+
+
+	let browser = new ParseBrowser();
+	// let parseData = await browser.run(insertData);
+	let parseData = await browser.run(csvWriter);
+
+	// connection.end((err) => {});
+}
+
+
+const csvWriter = createCsvWriter({
+	path: "output.csv",
+	header: [
+		{
+			id: "time", title: "Время сканирования",
+		},
+		{
+			id: "notifier", title: "Взломщик",
+		},
+		{
+			id: "os", title: "ОС",
+		},
+		{
+			id: "view", title: "Ссылка",
+		},
+		{
+			id: "ip", title: "IP сайта",
+		},
+		{
+			id: "domain", title: "Домен сайта",
+		},
+		{
+			id: "hackLink", title: "След взлома",
+		},
+	]
+});
+
+run(csvWriter);
