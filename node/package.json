@@ -1,0 +1,26 @@
+{
+  "name": "zonehscrapper",
+  "version": "0.1.0",
+  "description": "A zone.h website scrapper project",
+  "main": "main.js",
+  "private": true,
+  "dependencies": {
+    "axios": "^0.21.1",
+    "cheerio": "^1.0.0-rc.5",
+    "csv-parser": "^3.0.0",
+    "csv-write-stream": "^2.0.0",
+    "csv-writer": "^1.6.0",
+    "minimist": "^1.2.5",
+    "puppeteer": "^7.0.3",
+    "recognize": "^0.2.4"
+  },
+  "scripts": {
+    "start": "node main.js"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
