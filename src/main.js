@@ -35,47 +35,6 @@ async function parse_argv() {
 	}
 }
 
-async function test(dataHandler) {
-	dataHandler([
-			{
-				time: 1632517200,
-				notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
-				os: 'Linux',
-				view: 'https://zone-h.org/mirror/id/36697573',
-				ip: '116.202.175.242',
-				domain: 'http://nigeriapropertyrentals.com',
-				hackLink: 'http://nigeriapropertyrentals.com/407.html'
-			},
-			{
-			  time: 1632517200,
-			  notifier: 'https://zone-h.org/archive/notifier=chinafans',
-			  os: 'Linux',
-			  view: 'https://zone-h.org/mirror/id/36697568',
-			  ip: '167.233.3.74',
-			  domain: 'https://metod.rs',
-			  hackLink: 'https://metod.rs/o.htm'
-			},
-			{
-			  time: 1632517200,
-			  notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
-			  os: 'Linux',
-			  view: 'https://zone-h.org/mirror/id/36697567',
-			  ip: '151.106.97.221',
-			  domain: 'http://aakarinfraservices.com',
-			  hackLink: 'http://aakarinfraservices.com/pwn3d.php'
-			},
-			{
-			  time: 1632517200,
-			  notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
-			  os: 'Linux',
-			  view: 'https://zone-h.org/mirror/id/36697583',
-			  ip: '151.106.97.221',
-			  domain: 'http://godrejpropertiesindia.in',
-			  hackLink: 'http://godrejpropertiesindia.in/pwn3d.php'
-			}
-		])
-
-}
 
 async function run() {
 	await parse_argv()
