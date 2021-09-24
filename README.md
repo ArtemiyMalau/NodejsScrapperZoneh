@@ -9,11 +9,13 @@ Execute npm command to install all dependencies from package files
 npm install
 ~~~
 
+
 ## Startup
 Execute [main.js](src/main.js) script from command line to start parsing process
 ~~~
 node src/main.js
 ~~~
+
 
 ## Script arguments
 ### `page`
@@ -33,3 +35,12 @@ File must containg ips in IPv4 format with each ip of ips list on newline.
 
 ### `output_file`
 Filename where script will dump parsed data to. By default filename is *output.csv*
+
+
+## Examples
+~~~
+node src/main.js --page=2 --domain=.ru
+~~~
+~~~
+node src/main.js --page=10 --city_ip_name=москва --output_file=MoscowDump.csv
+~~~
