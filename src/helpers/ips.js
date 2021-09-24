@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const axios = require('axios');
 const cheerio = require("cheerio");
 const fs = require('fs');
+const os = require('os');
 const URL = require('url');
 
 import * as helpers from "./common.js";
@@ -17,25 +18,30 @@ async function getCityByName(city) {
 	url.searchParams.set("city", city);
 
 	let resp = await axios.get(url.href);
-	data = resp.data[0];
-	return {
-		id_net: data["id_net"],
-		id_nic: data["id_nic"],
-		name_ru: data["name_ru"],
+
+	if (resp.data) {
+		let data = resp.data[0];
+		return {
+			id_net: data["id_net"],
+			id_nic: data["id_nic"],
+			name_ru: data["name_ru"],
+		}
+	} else {
+		return false;
 	}
 }
 
 async function getIpRange(cities) {
 	let url = new URL.URL("https://4it.me/api/getlistip");
 
-	ipRange = [];
-	for (city of cities) {
+	let ipRange = [];
+	for (let city of cities) {
 		url.searchParams.set("cityid", city["cityid"]);
 		url.searchParams.set("base", city["base"]);
 
 		let resp = await axios.get(url.href);
 
-		for (range of resp.data) {
+		for (let range of resp.data) {
 			ipRange.push(range);
 		}
 	}
@@ -44,19 +50,22 @@ async function getIpRange(cities) {
 }
 
 async function getCityIpRanges(city) {
-	let resp = null;
 	let cityInfo = await getCityByName(city);
-	ipRanges = await getIpRange([
-		{cityid: cityInfo["id_net"], base: "net"}, 
-		{cityid: cityInfo["id_nic"], base: "nic"},
+	
+	if (cityInfo) {
+		let ipRanges = await getIpRange([
+			{cityid: cityInfo["id_net"], base: "net"}, 
+			{cityid: cityInfo["id_nic"], base: "nic"},
 		]);
+		return ipRanges;
+	} else {
+		return [];
+	}
 
-	return ipRanges;
 }
 
 async function getIpRangesFromIPv4File(filepath) {
 	let content = fs.readFileSync(filepath, "utf-8");
-	var os = require('os');
 	lines = content.split(os.EOL);
 
 	const result = lines.map(line => {

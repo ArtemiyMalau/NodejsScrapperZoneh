@@ -26,12 +26,12 @@ async function parse_argv() {
 	if (argv.city_ip_name) {
 		let ipRanges = await ips.getCityIpRanges(argv.city_ip_name);
 		console.log(`IPs from city ip ranges: ${ipRanges.length}`);
-		config.REQUIRED_IPS = config.REQUIRED_IPS.concat(ipRanges);
+		config.REQUIRED_IPS.push(...ipRanges);
 	}
 	if (argv.ip_file) {
 		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
 		console.log(`IPs from IPv4 file: ${ipRanges.length}`);
-		config.REQUIRED_IPS = config.REQUIRED_IPS.concat(ipRanges);
+		config.REQUIRED_IPS.push(...ipRanges);
 	}
 }
 
