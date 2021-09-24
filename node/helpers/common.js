@@ -1,9 +1,13 @@
+// Define "require"
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
 const URL = require('url');
 const fs = require('fs');
 
 function constructUrl(url, urlArgs) {
 	let newUrl = new URL.URL(url);
-	for (arg in urlArgs) {
+	for (let arg in urlArgs) {
 		newUrl.searchParams.set(arg, urlArgs[arg]);
 	}
 	return newUrl.href;
@@ -75,13 +79,5 @@ function readFilePromise(filepath, encoding=null) {
 	});
 };
 
-exports.constructUrl = constructUrl;
 
-exports.createAssociativeArray = createAssociativeArray;
-exports.readFilePromise = readFilePromise;
-
-exports.getHref = getHref;
-exports.getClearText = getClearText;
-exports.getTimestamp = getTimestamp;
-exports.getIp = getIp;
-exports.getUrl = getUrl;
+export {constructUrl, createAssociativeArray, readFilePromise, getHref, getClearText, getTimestamp, getIp, getUrl}

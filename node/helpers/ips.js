@@ -1,9 +1,13 @@
+// Define "require"
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
 const axios = require('axios');
 const cheerio = require("cheerio");
 const fs = require('fs');
 const URL = require('url');
 
-const helpers = require('./common.js');
+import * as helpers from "./common.js";
 
 
 const IPv4ToInt32 = (ip) => ip.split(".").reduce((r, e) => r * 256 + parseInt(e));
@@ -131,8 +135,4 @@ class GeoData {
 }
 	
 
-exports.GeoData = GeoData;
-exports.IPv4ToInt32 = IPv4ToInt32;
-exports.getCityIpRanges = getCityIpRanges;
-exports.getIpRangesFromIPv4File = getIpRangesFromIPv4File;
-exports.checkIpIntInRange = checkIpIntInRange;
+export {GeoData, IPv4ToInt32, getCityIpRanges, getIpRangesFromIPv4File, checkIpIntInRange}

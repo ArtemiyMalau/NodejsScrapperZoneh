@@ -1,9 +1,13 @@
+// Define "require"
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
 const cheerio = require("cheerio");
 const puppeteer = require('puppeteer');
 const Recognize = require('recognize');
 
-const ips = require("./helpers/ips");
-const helpers = require('./common.js');
+import * as ips from "./helpers/ips.js";
+import * as helpers from "./helpers/common.js";
 
 
 class ParseBrowser {
@@ -239,4 +243,5 @@ class ParseBrowser {
 	}
 }
 
-module.exports = ParseBrowser;
+
+export {ParseBrowser}

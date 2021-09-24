@@ -1,12 +1,15 @@
 import dateFormat from "dateformat";
 
+// Define "require"
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
 const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 
-const config = require("./config");
-
-const ips = require("./helpers/ips");
-const ParseBrowser = require("./parser");
+import * as config from "./config.js";
+import * as ips from "./helpers/ips.js";
+import {ParseBrowser} from "./parser.js";
 
 
 async function parse_argv() {
