@@ -2,8 +2,8 @@ const cheerio = require("cheerio");
 const puppeteer = require('puppeteer');
 const Recognize = require('recognize');
 
-const helpers = require("./helpers/common.js");
-const ips = require("./helpers/ips.js");
+const ips = require("./helpers/ips");
+const helpers = require('./common.js');
 
 
 class ParseBrowser {
@@ -21,17 +21,16 @@ class ParseBrowser {
 
 	/**
 	 * Parse data about hacked domains from zone-h.org website
-	 * and store them into csv document using CsvWriter object instance.
 	 * 		
 	 * @return {array} csvWriter Configurated CsvWriter object used for pass parsed data into csv file.
 	 */
-    async run() {
+    async run(dataHandler=false) {
         console.log(">> Start browser");
         this.browser = await puppeteer.launch(this.browserOptions);
         this.page = await this.browser.newPage();
         this.page.setUserAgent(this.userAgent);
 
-        let parseData = await this.parseZoneH();
+        let parseData = await this.parseZoneH(dataHandler);
 
 		console.log(">> Parsing ended");
      	this.browser.close();
@@ -39,11 +38,11 @@ class ParseBrowser {
      	return parseData;
     }
 
-    async parseZoneH() {
+    async parseZoneH(dataHandler) {
         let parseData = [];
 
         try {
-	        let previous_page = this.config.URL_ARGS["page"] - 1;
+	        let previousPage = this.config.URL_ARGS["page"] - 1;
 	       	while (true) {
         		const pageContent = await this.getPageContent(helpers.constructUrl(this.config.URL, this.config.URL_ARGS));
         		if (!pageContent) {
@@ -52,12 +51,15 @@ class ParseBrowser {
 
 	        	let parseTableResp = this.parseTable(pageContent);
 
-	       		if (previous_page >= parseTableResp["page"]) {
+	        	// End of table reached
+	       		if (previousPage >= parseTableResp["page"]) {
 	       			break;
 	       		} else {
+	       			let curPageData = [];
+
 	       			// Update page number
 		       		this.config.URL_ARGS["page"] += 1;
-		       		previous_page = parseTableResp["page"];
+		       		previousPage = parseTableResp["page"];
 
 		       		// Parse each row and put all data from row and mirrow together
 		    		for (let i = 0; i < parseTableResp["table"].length; i++) {
@@ -78,15 +80,21 @@ class ParseBrowser {
 							let ipInt = ips.IPv4ToInt32(parseTableResp["table"][i]["ip"]);
 							for (range of this.config.REQUIRED_IPS) {
 								if (helpers.checkIpIntInRange(ipInt, range["b"], range["e"])) {
-									parseData.push(parseTableResp["table"][i]);
+									curPageData.push(parseTableResp["table"][i]);
 									console.log("DOMAIN IN IP RANGE");
 									break;
 								}
 							}
 						} else {
-							parseData.push(parseTableResp["table"][i]);
+							curPageData.push(parseTableResp["table"][i]);
 						}
 		    		}
+
+		    		if (dataHandler !== false) {
+		    			dataHandler(curPageData);
+		    		}
+
+		    		parseData = parseData.concat(curPageData);
 	       		}
 	       	}
 		} catch (e) {

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const cheerio = require("cheerio");
 const fs = require('fs');
 const URL = require('url');
 
@@ -73,6 +74,64 @@ function checkIpIntInRange(ipInt, ipIntStart, ipIntEnd) {
 };
 
 
+class GeoData {
+	constructor() {
+		this.geoInfo = new Object();
+		this.geoFuncs = [this.getLocationIpApiCom, this.getLocationGeoIpLookup];
+	}
+
+	async geoByIp(ip) {
+		if (ip in this.geoInfo) {
+			return this.geoInfo[ip];
+		} else {
+			for (let geoFunc of this.geoFuncs) {
+				let geo = await geoFunc(ip);
+				if (geo !== false) {
+					this.geoInfo[ip] = geo;
+					return this.geoInfo[ip];
+				}
+			}
+
+			this.geoInfo[ip] = {city: "", country: ""};
+			return this.geoInfo[ip];
+		}
+	}
+
+	async getLocationIpApiCom(ip) {
+		let resp = await axios.get(`http://ip-api.com/json/${ip}`);
+
+		try {
+			if ("country" in resp.data && "city" in resp.data) {
+				return {
+					city: json_resp["city"], 
+					country: json_resp["country"]
+				}
+			} else {
+				return false;	
+			}
+		} catch (e) {
+			return false;
+		}
+	}
+
+	async getLocationGeoIpLookup(ip) {
+		let resp = await axios.get(`http://api.geoiplookup.net/?query=${ip}`);
+
+		try {
+			const $ = cheerio.load(resp.data);
+
+			return {
+				city: $("city").text().trim(),
+				country: $("countryname").text().trim()
+			}
+		} catch (e) {
+			return false;
+		}
+	}
+}
+	
+
+exports.GeoData = GeoData;
 exports.IPv4ToInt32 = IPv4ToInt32;
 exports.getCityIpRanges = getCityIpRanges;
 exports.getIpRangesFromIPv4File = getIpRangesFromIPv4File;

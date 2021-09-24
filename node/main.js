@@ -1,7 +1,10 @@
+import dateFormat from "dateformat";
+
 const fs = require("fs");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 
 const config = require("./config");
+
 const ips = require("./helpers/ips");
 const ParseBrowser = require("./parser");
 
@@ -29,12 +32,54 @@ async function parse_argv() {
 	}
 }
 
+async function test(dataHandler) {
+	dataHandler([
+			{
+				time: 1632517200,
+				notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
+				os: 'Linux',
+				view: 'https://zone-h.org/mirror/id/36697573',
+				ip: '116.202.175.242',
+				domain: 'http://nigeriapropertyrentals.com',
+				hackLink: 'http://nigeriapropertyrentals.com/407.html'
+			},
+			{
+			  time: 1632517200,
+			  notifier: 'https://zone-h.org/archive/notifier=chinafans',
+			  os: 'Linux',
+			  view: 'https://zone-h.org/mirror/id/36697568',
+			  ip: '167.233.3.74',
+			  domain: 'https://metod.rs',
+			  hackLink: 'https://metod.rs/o.htm'
+			},
+			{
+			  time: 1632517200,
+			  notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
+			  os: 'Linux',
+			  view: 'https://zone-h.org/mirror/id/36697567',
+			  ip: '151.106.97.221',
+			  domain: 'http://aakarinfraservices.com',
+			  hackLink: 'http://aakarinfraservices.com/pwn3d.php'
+			},
+			{
+			  time: 1632517200,
+			  notifier: 'https://zone-h.org/archive/notifier=.%252FKeyzNet',
+			  os: 'Linux',
+			  view: 'https://zone-h.org/mirror/id/36697583',
+			  ip: '151.106.97.221',
+			  domain: 'http://godrejpropertiesindia.in',
+			  hackLink: 'http://godrejpropertiesindia.in/pwn3d.php'
+			}
+		])
+
+}
 
 async function run() {
 	await parse_argv()
 	console.log(config);
 
-	const csvWriter = createCsvWriter({
+	var geoData = new ips.GeoData();
+	var csvWriter = createCsvWriter({
 		path: config.OUTPUT_FILE,
 		// id field represents key in associate array, title field represent column header name in csv file
 		header: [
@@ -54,6 +99,12 @@ async function run() {
 				id: "ip", title: "ip",
 			},
 			{
+				id: "country", title: "country",
+			},
+			{
+				id: "city", title: "city",
+			},
+			{
 				id: "domain", title: "domain",
 			},
 			{
@@ -64,9 +115,18 @@ async function run() {
 	});
 
 	let browser = new ParseBrowser(config);
-	let parseData = await browser.run();
+	await browser.run(async (parseData) => {
+		console.log(parseData);
 
-	await csvWriter.writeRecords(parseData);
+		let formattedParseData = await Promise.all(parseData.map(async (data) => {
+			let geo = await geoData.geoByIp(data["ip"]);
+			data["time"] = dateFormat(new Date(data["time"] * 1000), "MM:HH dd.mm.yyyy");
+			
+			return Object.assign({}, data, geo);
+		}));
+
+		await csvWriter.writeRecords(formattedParseData);
+	});
 
 }
 
