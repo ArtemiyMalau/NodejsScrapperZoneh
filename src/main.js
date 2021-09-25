@@ -29,7 +29,7 @@ async function parse_argv() {
 		config.REQUIRED_IPS.push(...ipRanges);
 	}
 	if (argv.ip_file) {
-		let ipRanges = await ips.getIpRangesFromIPv4File(argv.ip_file);
+		let ipRanges = await ips.getIpRangesFromCIDRFile(argv.ip_file);
 		console.log(`IPs from IPv4 file: ${ipRanges.length}`);
 		config.REQUIRED_IPS.push(...ipRanges);
 	}
