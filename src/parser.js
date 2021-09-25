@@ -2,111 +2,142 @@
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 
+const chalk = require("chalk");
 const cheerio = require("cheerio");
-const puppeteer = require('puppeteer');
-const Recognize = require('recognize');
+const puppeteer = require("puppeteer");
+const Recognize = require("recognize");
 
 import * as ips from "./helpers/ips.js";
 import * as helpers from "./helpers/common.js";
 
 
 class ParseBrowser {
-    constructor(config) {
-        this.browserOptions = {
-        	headless: true
-        };
-        this.pageOptions = {
-        	timeout: 12500
-        };
-        this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
+	constructor(config) {
+		this.browserOptions = {
+			headless: true
+		};
+		this.pageOptions = {
+			timeout: 9000
+		};
+		this.userAgent = "Mozilla/6.0 (Windows NT 6.1; Win64; x64; rv:81.0) Gecko/20100101 Firefox/81.0";
 
-        this.config = config;
-    }
+		this.config = config;
+	}
+
+	/**
+	 * Entry point for parsing zone-h.org website. Launching and closing puppeteer browser. 
+	 * Running ParseZoneH method returning parsed data.
+	 * 		
+	 * @param {function} dataHandler Function will be called with each parsed page table data. Passed to parseZoneH method.
+	 * 
+	 * @return {array} Parsed data from parseZoneH method.
+	 */
+	async run(dataHandler=false) {
+		console.log(">> Start browser");
+
+		this.browser = await puppeteer.launch(this.browserOptions);
+		this.page = await this.browser.newPage();
+		this.page.setUserAgent(this.userAgent);
+
+		let parseData = await this.parseZoneH(dataHandler);
+
+		console.log(">> Parsing ended");
+
+		this.browser.close();
+
+		return parseData;
+	}
 
 	/**
 	 * Parse data about hacked domains from zone-h.org website
 	 * 		
-	 * @return {array} csvWriter Configurated CsvWriter object used for pass parsed data into csv file.
+	 * @param {function} dataHandler Function will be called with each parsed page table data.
+	 * 
+	 * @return {array} Parsed data containing fields stored in site's table and site's mirror pages.
 	 */
-    async run(dataHandler=false) {
-        console.log(">> Start browser");
-        this.browser = await puppeteer.launch(this.browserOptions);
-        this.page = await this.browser.newPage();
-        this.page.setUserAgent(this.userAgent);
+	async parseZoneH(dataHandler) {
+		let parseData = [];
+		let previousPage = this.config.URL_ARGS["page"] - 1;
 
-        let parseData = await this.parseZoneH(dataHandler);
+		try {
+			while (true) {
+				const tablePageContent = await this.getPageContent(helpers.constructUrl(this.config.URL, this.config.URL_ARGS));
+				if (tablePageContent) {
+					// Get data about all sites from table
+					var parseTableResp = this.parseTable(tablePageContent);
+				} else {
+					continue;
+				}
 
-		console.log(">> Parsing ended");
-     	this.browser.close();
+				// End of table reached
+				if (previousPage >= parseTableResp["page"]) {
+					break;
+				} else {
+					let curTableData = [];
 
-     	return parseData;
-    }
+					// Update page number
+					this.config.URL_ARGS["page"] += 1;
+					previousPage = parseTableResp["page"];
 
-    async parseZoneH(dataHandler) {
-        let parseData = [];
-
-        try {
-	        let previousPage = this.config.URL_ARGS["page"] - 1;
-	       	while (true) {
-        		const pageContent = await this.getPageContent(helpers.constructUrl(this.config.URL, this.config.URL_ARGS));
-        		if (!pageContent) {
-	       			continue;
-        		}
-
-	        	let parseTableResp = this.parseTable(pageContent);
-
-	        	// End of table reached
-	       		if (previousPage >= parseTableResp["page"]) {
-	       			break;
-	       		} else {
-	       			let curPageData = [];
-
-	       			// Update page number
-		       		this.config.URL_ARGS["page"] += 1;
-		       		previousPage = parseTableResp["page"];
-
-		       		// Parse each row and put all data from row and mirrow together
-		    		for (let i = 0; i < parseTableResp["table"].length; i++) {
-		    			const pageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
-		    			if (!pageContent) {
-			       			continue;
-		        		}
-
-	    				let parseSiteResp = this.parseMirror(pageContent);
-	    				
-		    			// Insert additional fields in parse row
-		    			parseTableResp["table"][i] = Object.assign(parseTableResp["table"][i], parseSiteResp);
-
-		    			console.log(parseTableResp["table"][i]);
-
-						// IpRange validation
-						if (this.config.REQUIRED_IPS.length > 0) {
-							let ipInt = ips.IPv4ToInt32(parseTableResp["table"][i]["ip"]);
-							for (range of this.config.REQUIRED_IPS) {
-								if (helpers.checkIpIntInRange(ipInt, range["b"], range["e"])) {
-									curPageData.push(parseTableResp["table"][i]);
-									console.log("DOMAIN IN IP RANGE");
-									break;
-								}
-							}
+					// Parse each row and put all data from row and mirrow together
+					for (let i = 0; i < parseTableResp["table"].length; i++) {
+						const mirrorPageContent = await this.getPageContent(parseTableResp["table"][i]["view"]);
+						if (mirrorPageContent) {
+							// Get data about single site from mirror link
+							var parseSiteResp = this.parseMirror(mirrorPageContent);
 						} else {
-							curPageData.push(parseTableResp["table"][i]);
+							continue;
 						}
-		    		}
+						
+						// Insert additional fields in parse row
+						parseTableResp["table"][i] = Object.assign(parseTableResp["table"][i], parseSiteResp);
 
-		    		if (dataHandler !== false) {
-		    			dataHandler(curPageData);
-		    		}
+						if (this.siteValidate(parseTableResp["table"][i])) {
+							console.log(chalk.green(">> Site is match"));
+							curTableData.push(parseTableResp["table"][i]);
+						} else {
+							console.log(chalk.yellow(">> Site isn't match"));
+						}
+						console.log(parseTableResp["table"][i]);
 
-		    		parseData = parseData.concat(curPageData);
-	       		}
-	       	}
+					}
+
+					if (dataHandler !== false) {
+						dataHandler(curTableData);
+					}
+
+					parseData = parseData.concat(curTableData);
+				}
+			}
 		} catch (e) {
 			console.log(e);
 		}
 
 		return parseData;
-    }
+	}
+
+	siteValidate(siteData) {
+		// IpRange validation
+		if (this.config.REQUIRED_IPS.length) {
+			let ipInt = ips.IPv4ToInt32(siteData["ip"]);
+
+			let ipInRange = false;
+
+			for (let range of this.config.REQUIRED_IPS) {
+				console.log(ipInt, range["b"], range["e"]);
+				if (ips.checkIpIntInRange(ipInt, range["b"], range["e"])) {
+					ipInRange = true;
+					break;
+				}
+			}
+
+			if (!ipInRange) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 	
 	parseMirror(pageContent) {
 		const $ = cheerio.load(pageContent);
@@ -120,8 +151,8 @@ class ParseBrowser {
 		return {ip, domain, hackLink}
 	}
 
-    parseTable(pageContent) {
-    	const $ = cheerio.load(pageContent);
+	parseTable(pageContent) {
+		const $ = cheerio.load(pageContent);
 
 		let trArr = [];
 
@@ -142,50 +173,53 @@ class ParseBrowser {
 		let page = $("td.defacepages > strong").text();
 
 		return {table: trArr, page}
-    }
+	}
 
-    async getPageContent(url) {
+	async getPageContent(url) {
 		console.log(`>> Scrapping ${url}`);
-    	await this.page.goto(url, this.pageOptions);
 
-    	// trying to solve captcha
-    	let attempts = 0;
-    	while (! await this.trySolveImageCaptcha("#cryptogram", "input[type=text][name*=captcha]", "input[type=submit]")) {
-    		attempts += 1;
-	    	if (attempts == this.config.SOLVE_CAPTCHA_ATTEMPTS) {
-	    		return;
-	    	}
-    	}
+		await this.page.goto(url, this.pageOptions);
 
-    	// return page html
-    	return this.page.content();
-    }
+		// trying to solve captcha
+		let attempts = 0;
+		while (! await this.trySolveImageCaptcha("#cryptogram", "input[type=text][name*=captcha]", "input[type=submit]")) {
+			attempts += 1;
+			if (attempts == this.config.SOLVE_CAPTCHA_ATTEMPTS) {
+				return;
+			}
+		}
 
-    async checkCaptchaExist(captchaEl) {
-    	try {
-	 		await this.page.waitForSelector(captchaEl);
-	 		return true;  // page have captcha element
+		// return page html
+		return this.page.content();
+	}
+
+	async checkCaptchaExist(captchaEl) {
+		try {
+			await this.page.waitForSelector(captchaEl);
+			return true;  // page have captcha element
 		} catch (e) {
 			return false; // page doesn't have captcha element
 		}
-    }
+	}
 
-    async trySolveImageCaptcha(captchaEl, inputEl, submitEl) {
-    	if (! await this.checkCaptchaExist(captchaEl)) {
+	async trySolveImageCaptcha(captchaEl, inputEl, submitEl) {
+		if (! await this.checkCaptchaExist(captchaEl)) {
 			return true; // page doesn't have captcha element
-    	}
+		}
+
+		console.log(chalk.bgWhite.black("\n>> CAPTHCA SOLVING >>"));
 
 		// make captcha screenshot and safe on local machine
-	  	const captcha = await this.page.$(captchaEl);
-	  	await captcha.screenshot({path: this.config.CAPTCHA_PATH});
+		const captcha = await this.page.$(captchaEl);
+		await captcha.screenshot({path: this.config.CAPTCHA_PATH});
 
-	  	// create recognize instance
-	  	var recognize = new Recognize('rucaptcha', {
-		    key: this.config.RUCAPTCHA_KEY
+		// create recognize instance
+		var recognize = new Recognize('rucaptcha', {
+			key: this.config.RUCAPTCHA_KEY
 		});
 
-	  	// get captcha solve code
-	  	let captchaCode = await helpers.readFilePromise(this.config.CAPTCHA_PATH)
+		// get captcha solve code
+		let captchaCode = await helpers.readFilePromise(this.config.CAPTCHA_PATH)
 			.then((fileData) => {
 				return new Promise((resolve, reject) => {
 					recognize.solving(fileData, function(err, id, code) {
@@ -202,12 +236,12 @@ class ParseBrowser {
 					data["status"] = true
 					return data
 				} else {
-				    recognize.report(data["id"], function(err, answer) {
-				        console.log(answer);
-				        
-				        data["status"] = false
-				    	return data
-				    });
+					recognize.report(data["id"], function(err, answer) {
+						console.log(answer);
+						
+						data["status"] = false
+						return data
+					});
 				}
 			})
 			.catch((error) => {
@@ -216,30 +250,42 @@ class ParseBrowser {
 				};
 			});
 		
+		let solveStatus;
 		if (captchaCode["status"]) {
-			// input captcha code
-		    await this.page.type(inputEl, captchaCode["code"]);
-		    await Promise.all([
-		        this.page.click(submitEl),
-		        this.page.waitForNavigation({
-		            waitUntil: 'networkidle0',
-		        }),
-		    ]);
+			console.log(">> Captcha assumption:", captchaCode["code"]);
 
-		    // Check if captcha is still exist
-		    if (await this.checkCaptchaExist(captchaEl)) {
-		    	console.log("STILL EXIST");
-		    	recognize.report(captchaCode["id"], function(err, answer) {
-	                console.log(answer);
-	            });
-	    		return false; // incorrect captchaCode
-		    } else {
-		    	return true; // correct captchaCode
-		    }
+			// input captcha code
+			await this.page.type(inputEl, captchaCode["code"]);
+			await Promise.all([
+				this.page.click(submitEl),
+				this.page.waitForNavigation({
+					waitUntil: 'networkidle0',
+				}),
+			]);
+
+			// Check if captcha is still exist
+			if (await this.checkCaptchaExist(captchaEl)) {
+				console.log(chalk.yellow(">> CAPTHCA STILL EXIST"));
+
+				recognize.report(captchaCode["id"], function(err, answer) {
+					console.log(answer);
+				});
+				solveStatus = false; // incorrect captchaCode
+			} else {
+				console.log(chalk.green(">> CAPTHCA SOLVED"));
+
+				solveStatus = true; // correct captchaCode
+			}
 		} else {
 			// cannot solve captcha
-			return false;
+			console.log(chalk.red(">> CANNOT SOLVE CAPTHCA"));
+
+			solveStatus = false;
 		}
+
+		console.log(chalk.bgWhite.black(">>>>>>>>>>>>>>>>>>>>>\n"));
+
+		return solveStatus;
 	}
 }
 
