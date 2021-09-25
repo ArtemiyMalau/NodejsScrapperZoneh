@@ -19,7 +19,7 @@ node src/main.js
 
 ## Script arguments
 ### `page`
-Page of data on site which parser will starts from. *1* by default
+Page of data on site which parser will starts from. **1** by default
 
 ### `domain`
 A substring of hacked site base domain.
@@ -30,11 +30,16 @@ The name of the city whose ip addresses will be searched among hacked sites' ip 
 For example **city_ip_name=Moscow** will search sites located in Moscow city.
 
 ### `ip_file`
-Filename contains ips which will be compare with parsed sites' ip. Dump site if site's ip among interested ips.
-File must containg ips in IPv4 format with each ip of ips list on newline.
+File contains ips range which will be compare with parsed sites' ip. Dump site if site's ip in range of any interested ip ranges.
+File must containg ips CIDR format with each ip of ips list on newline like:
+~~~
+50.165.190.0/23
+198.51.100.14/24
+192.24.12.0/22
+~~~
 
 ### `output_file`
-Filename where script will dump parsed data to. By default filename is *output.csv*
+File where script will dump parsed data to. By default filename is *output.csv*
 
 
 ## Examples
