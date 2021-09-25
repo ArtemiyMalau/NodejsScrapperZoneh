@@ -66,7 +66,7 @@ async function getCityIpRanges(city) {
 
 async function getIpRangesFromIPv4File(filepath) {
 	let content = fs.readFileSync(filepath, "utf-8");
-	lines = content.split(os.EOL);
+	let lines = content.split(os.EOL);
 
 	const result = lines.map(line => {
 		let range = line.split("-").map(IPv4ToInt32);
